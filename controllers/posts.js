@@ -13,7 +13,9 @@ export const getPosts = async (req,res) => {
 
 export const createPost =  async (req,res)=>{
     const post =req.body;
-    const newPost = new PostMessage(post);
+    //const newPost = new PostMessage(post);
+    const newPost = new PostMessage({...post,creator:req.userId,createdAt:new Date().toISOString()});
+
     try {
         await newPost.save();
 
@@ -53,10 +55,37 @@ export const deletePost = async (req,res) =>{
 
 export const likePost = async (req,res) =>{
     const {id} = req.params;
+    console.log('BE : Inside likePost controller');
+    console.log(req);
 
-    if (!mongoose.Types.ObjectId.isValid(id)) return res.status('404').send('Invalid record to delete');
+    //
+    if(!req.userId) return res.json({message:'Unauthenticated user'});
+    //
+
+    if (!mongoose.Types.ObjectId.isValid(id)) return res.status('404').send('Invalid record to like');
 
     const post= await PostMessage.findById(id);
-    const updatedPost = await PostMessage.findByIdAndUpdate(id,{likeCount:post.likeCount+1},{new:true})
+    let updPost;
+    //
+    const index=post.likes.findIndex((id)=> id===String(req.userId));
+    const userid=req.userId;
+    if(index === -1){
+        console.log('like post: Not liked before '+ post );
+        //the user is not liked the post before. hence like the post i.e just pushing the id into the likes
+        post.likes.push(req.userId);
+        post.likeCount+=1;
+        updPost=post;
+
+    }else{
+        //user has already liked the post before. delike the post. It filters out the id from the likes array object in the post.
+        post.likes=post.likes.filter((likedUserId)=> likedUserId !== userid);        
+        post.likeCount>0 ? post.likeCount-=1:post.likeCount=0;
+        updPost=post;
+        
+    }
+    //
+    //const updatedPost = await PostMessage.findByIdAndUpdate(id,{likeCount:post.likeCount+1},{new:true});    
+    const updatedPost = await PostMessage.findByIdAndUpdate(id,updPost,{new:true});
+    console.log('updated post after like: '+ updatedPost );
    res.json(updatedPost);
 }
